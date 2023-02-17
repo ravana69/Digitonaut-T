@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/tv_noise/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:40:15 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Tv Noise</title>
+
+<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+<script id="vs" type="not-js">
+void main()	{
+  gl_Position = vec4( position, 1.0 );
+}
+</script>
+<script id="fs" type="not-js">
+precision mediump float;
+
+// -------------------------------------------- code from https://glslsandbox.com/ ------------------
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform vec2 resolution;
+uniform vec2 mouse;
+uniform float time;
+
+#define num 60.0
+
+
+float random(vec2 p){
+	return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453+time*4.0);	
+}
+
+
+void main() {
+    	vec2 p = ( gl_FragCoord.xy / (resolution.xy) );
+	//- vec2(0.5, 0.5);
+	//vec2 p = (gl_FragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y) - vec2(.5 , .5);
+    
+    	float top, bottom, linewidth;
+	float offSet = 0.5;
+	float span = 0.01;
+	linewidth = 0.01;
+	
+   	top = fract(time);
+	bottom = fract(time) + linewidth;
+	
+	vec4 border = vec4(0.0, 0.0, 0.0, 1.0);
+	
+	for(float i = 1.0; i < num; i++){
+		top += i * span; 
+		top = fract(top);
+		bottom += i *span;
+		bottom = fract(bottom);
+		if(p.y > top && p.y < bottom){
+		border = vec4(abs(1.0 * sin(time)), 0.0, 0.0, 1.0);
+		}
+	}
+    
+ 	float c = random(p);
+	vec3 col = mix(vec3(c, c, c), border.xyz, 0.6);
+	//float r = mix(c, border.x, 0.6);
+	//vec4 col= vec4(mix(vec3(p, p, p), border.xyz), 1.0);
+    	gl_FragColor = vec4(col, 1.0);
+	
+	/*
+	if(p.y < -0.5){
+		gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+	}
+	*/
+	
+}
+// -------------------------------------------------------------------------------------------------------------------
+
+</script>
+<script src="three.min.js"></script>
+<script src="main.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/tv_noise/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:40:42 GMT -->
+</html>

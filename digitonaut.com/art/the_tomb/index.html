@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/the_tomb/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:36:47 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>The Tomb</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<script src="88_three.min.js"></script>
+<script id="vertexShader" type="x-shader/x-vertex">
+    void main() {
+        gl_Position = vec4( position, 1.0 );
+    }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+    uniform vec2 u_resolution;
+    uniform float u_time;
+    uniform vec2 u_mouse;
+    uniform sampler2D u_bricktex;
+    uniform sampler2D u_sandtex;
+  
+    const int octaves = 2;
+    const float seed = 43758.5453123;
+    const float seed2 = 73156.8473192;
+    // Epsilon value
+    const float eps = 0.005;
+  
+    const vec3 ambientLight = 0.99 * vec3(1.0, 1.0, 1.0);
+    const vec3 light1Pos = vec3(10., 5.0, -25.0);
+    const vec3 light1Intensity = vec3(0.35);
+    const vec3 light2Pos = vec3(-20., -25.0, 85.0);
+    const vec3 light2Intensity = vec3(0.2);
+  
+    // movement variables
+    vec3 movement = vec3(.0);
+
+    // Gloable variables for the raymarching algorithm.
+    const int maxIterations = 2048;
+    const int maxIterationsShad = 16;
+    const float stepScale = .07;
+    const float stopThreshold = 0.01;
+    const float clipNear = 0.0;
+    const float clipFar = 32.0;
+  
+  
+  mat4 rotationMatrix(vec3 axis, float angle)
+  {
+      axis = normalize(axis);
+      float s = sin(angle);
+      float c = cos(angle);
+      float oc = 1.0 - c;
+
+      return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
+                  oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
+                  oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
+                  0.0,                                0.0,                                0.0,                                1.0);
+  }
+  
+  mat2 rot2( float a ){ vec2 v = sin(vec2(1.570796, 0) + a);	return mat2(v, -v.y, v.x); }
+  
+  
+  float length2( vec2 p )
+  {
+    return sqrt( p.x*p.x + p.y*p.y );
+  }
+
+  float length6( vec2 p )
+  {
+    p = p*p*p; p = p*p;
+    return pow( p.x + p.y, 1.0/6.0 );
+  }
+
+  float length8( vec2 p )
+  {
+    p = p*p; p = p*p; p = p*p;
+    return pow( p.x + p.y, 1.0/8.0 );
+  }
+
+  float length16( vec2 p )
+  {
+    p *= p*p; p *= p*p*p;
+    return pow( p.x + p.y, 1.0/16.0 );
+  }
+  
+  // smooth min
+  // reference: http://iquilezles.org/www/articles/smin/smin.htm
+  float smin(float a, float b, float k) {
+      float res = exp(-k*a) + exp(-k*b);
+      return -log(res)/k;
+  }
+  
+  vec3 random3( vec3 p ) {
+      return fract(sin(vec3(dot(p,vec3(127.1,311.7,319.8)),dot(p,vec3(269.5,183.3, 415.2)),dot(p,vec3(362.9,201.5,134.7))))*43758.5453);
+  }
+  vec2 random2( vec2 p ) {
+      return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
+  }
+  
+  vec3 camPath(in float delta) {
+    vec3 path = vec3(cos(delta * .4) * sin(delta * .15) + (sin(delta * 1.5) * .1), 1. - sin(delta * .15), delta);
+    path.xy *= rot2( delta * .2 );
+    return path;
+  }
+  
+  // The world!
+  float world_sdf(in vec3 p, inout int objid, inout float walldetail, inout float blenddetail) {
+    float world = 10.;
+    
+    vec3 pathPos = camPath(p.z);
+    // p.xy *= rot2( p.z * .1 );
+    
+    vec3 grid = floor(p);
+    vec2 rand = random2(grid.xy);
+    
+    objid = 0;
+    
+    // p = mod(p, 2.0) - 1.;
+    
+    // world = sdSphere(p, .5);
+    
+    float freq = pathPos.z * 5.;
+    
+    world = .5 - length(p.xy - pathPos.xy);
+    // world = .5 - length16(p.xy - pathPos.xy);
+    walldetail = clamp(sign(sin(pathPos.z * 2.6) - .98), -.1, 1.);
+    world -= walldetail * .06;
+    // world += floor(sin(pathPos.z * 20.)) * floor(sin(pathPos.z * 2.)) * .1;
+    // world += floor( sin(freq + cos(freq * 4.)) ) * .2;
+    // world += floor(sin(freq)) * -abs(sin(freq)) * .1;
+    // world = (length(p.xy - pathPos.xy) - 1.);
+    
+    float floorpos = p.y - pathPos.y + .3;
+    
+    blenddetail = 1. - smoothstep(0., .1, floorpos);
+    
+    float floor = floorpos + world * world * world;
+    
+    
+    if(floor < world) {
+      objid = 1;
+    }
+    
+    world = smin(floor, world, 100.);
+    
+    
+    return world;
+  }
+  float world_sdf(in vec3 p) {
+    int objid = 0;
+    float walldetail = 0.;
+    float blenddetail = 0.;
+    return world_sdf(p, objid, walldetail, blenddetail);
+  }
+  
+  // Fuck yeah, normals!
+  vec3 calculate_normal(in vec3 p)
+  {
+    const vec3 small_step = vec3(0.0001, 0.0, 0.0);
+    
+    float gradient_x = world_sdf(vec3(p.x + eps, p.y, p.z)) - world_sdf(vec3(p.x - eps, p.y, p.z));
+    float gradient_y = world_sdf(vec3(p.x, p.y + eps, p.z)) - world_sdf(vec3(p.x, p.y - eps, p.z));
+    float gradient_z = world_sdf(vec3(p.x, p.y, p.z  + eps)) - world_sdf(vec3(p.x, p.y, p.z - eps));
+    
+    vec3 normal = vec3(gradient_x, gradient_y, gradient_z);
+
+    return normalize(normal);
+  }
+
+  // Raymarching.
+  float rayMarching( vec3 origin, vec3 dir, float start, float end, inout int objid, inout float walldetail, inout float blenddetail ) {
+    
+    float sceneDist = 1e4;
+    float rayDepth = start;
+    for ( int i = 0; i < maxIterations; i++ ) {
+      sceneDist = world_sdf( origin + dir * rayDepth, objid, walldetail, blenddetail ); // Distance from the point along the ray to the nearest surface point in the scene.
+
+      if (( sceneDist < stopThreshold ) || (rayDepth >= end)) {        
+        break;
+      }
+      // We haven't hit anything, so increase the depth by a scaled factor of the minimum scene distance.
+      rayDepth += sceneDist * stepScale;
+    }
+  
+    if ( sceneDist >= stopThreshold ) rayDepth = end;
+    else rayDepth += sceneDist;
+      
+    // We've used up our maximum iterations. Return the maximum distance.
+    return rayDepth;
+  }
+  
+
+  // Shadows
+  // Reference at: http://www.iquilezles.org/www/articles/rmshadows/rmshadows.htm
+  float softShadow(vec3 ro, vec3 lightPos, float start, float k){
+    
+      vec3 rd = lightPos - ro;
+      float end = length(rd);
+
+      float shade = 1.0;
+
+      float dist = start;
+      float stepDist = .01;
+
+      for (int i=0; i<maxIterationsShad; i++){
+          float h = world_sdf(ro + rd*dist);
+          shade = min(shade, k*h/dist);
+          
+          dist += min(h, stepDist*2.); // The best of both worlds... I think. 
+          
+          if (h<0.001 || dist > end) break; 
+      }
+
+      return min(max(shade, 0.) + 0.3, 1.0); 
+  }
+
+  // Based on original by IQ - optimized to remove a divide
+  float calculateAO(vec3 p, vec3 n)
+  {
+     const float AO_SAMPLES = 5.0;
+     float r = 0.0;
+     float w = 1.0;
+     for (float i=1.0; i<=AO_SAMPLES; i++)
+     {
+        float d0 = i * 0.15; // 1.0/AO_SAMPLES
+        r += w * (d0 - world_sdf(p + n * d0));
+        w *= 0.5;
+     }
+     return 1.0-clamp(r,0.0,1.0);
+  }
+  
+  /**
+   * Lighting
+   * This stuff is way way better than the model I was using.
+   * Courtesy Shane Warne
+   * Reference: http://raymarching.com/
+   * -------------------------------------
+   * */
+  
+  // Lighting.
+  vec3 lighting( vec3 sp, vec3 camPos, int reflectionPass, float dist, vec3 rd, int objid, float walldetail, float blenddetail) {
+    
+    // Start with black.
+    vec3 sceneColor = vec3(0.0);
+
+    vec3 objColor = vec3(1.0);
+
+    // Obtain the surface normal at the scene position "sp."
+    vec3 surfNormal = calculate_normal(sp);
+    
+    vec4 sandtex = texture2D(u_sandtex, sp.xz);
+    
+    if(objid == 0) {
+      float ang = atan(surfNormal.y, surfNormal.x);
+      vec4 tex = texture2D(u_bricktex, vec2(ang * .6 * 3.1415, sp.z * 1.8) * 1.);
+      objColor = mix(tex.xzz * tex.zxx, tex.xyz.zzz * .4, walldetail);
+      objColor = mix(objColor, sandtex.xyz * sandtex.xyz * .5, blenddetail);
+      surfNormal.z += tex.z * 2.;
+      surfNormal = normalize(surfNormal);
+    } else if(objid == 1) {
+      objColor = sandtex.xyz * sandtex.xyz * .5;
+      surfNormal.z += sandtex.z * 1.;
+      surfNormal = normalize(surfNormal);
+    }
+    
+
+    // Lighting.
+
+    // lp - Light position. Keeping it in the vacinity of the camera, but away from the objects in the scene.
+    vec3 lp = vec3(0., 0.0, .0) + camPath(u_time + .9 + sin(u_time * .5) * 2.);
+    // ld - Light direction.
+    vec3 ld = lp-sp;
+    // lcolor - Light color.
+    vec3 lcolor = vec3(1.,0.97,0.92) * 2.;
+    
+     // Light falloff (attenuation).
+    float len = length( ld ); // Distance from the light to the surface point.
+    ld /= len; // Normalizing the light-to-surface, aka light-direction, vector.
+    float lightAtten = min( 1.0 / ( 0.05*len*len ), 1.0 ); // Removed light attenuation for this because I want the fade to white
+    
+    float sceneLen = length(camPos - sp); // Distance of the camera to the surface point
+    // float sceneAtten = min( 1.0 / ( 0.015*sceneLen*sceneLen ), 1.0 ); // Keeps things between 0 and 1.   
+
+    // Obtain the reflected vector at the scene position "sp."
+    vec3 ref = reflect(-ld, surfNormal);
+    
+    float ao = 1.0; // Ambient occlusion.
+    // ao = calculateAO(sp, surfNormal); // Ambient occlusion.
+
+    float ambient = .5; //The object's ambient property.
+    float specularPower = 10.; // The power of the specularity. Higher numbers can give the object a harder, shinier look.
+    float diffuse = max( 0.0, dot(surfNormal, ld) ); //The object's diffuse value.
+    float specular = max( 0.0, dot( ref, normalize(camPos-sp)) ); //The object's specular value.
+    specular = pow(specular, specularPower); // Ramping up the specular value to the specular power for a bit of shininess.
+    	
+    // Bringing all the lighting components togethr to color the screen pixel.
+    sceneColor += (objColor*(diffuse*0.8+ambient)+specular*0.2)*lcolor*lightAtten;
+    // sceneColor = mix(sceneColor, vec3(1.), 1.-sceneAtten*sceneAtten); // fog
+    
+    float shadow = softShadow(sp, lp, .01, .5);
+    sceneColor *= shadow * shadow;
+    
+    return sceneColor;
+
+  }
+
+    void main() {
+      
+      // Setting up our screen coordinates.
+      vec2 aspect = vec2(u_resolution.x/u_resolution.y, 1.0); //
+      vec2 uv = (2.0*gl_FragCoord.xy/u_resolution.xy - 1.0)*aspect;
+      
+      // This just gives us a touch of fisheye
+      // uv *= 1. + dot(uv, uv) * 0.4;
+      
+      // movement
+      movement = camPath(u_time - 1.);
+      movement.y -= abs(sin(u_time * 8.)) * .007;
+      
+      // The sin in here is to make it look like a walk.
+      vec3 lookAt = vec3(0., 0., .0);  // This is the point you look towards, or at, if you prefer.
+      vec3 camera_position = vec3(1.0); // This is the point you look from, or camera you look at the scene through. Whichever way you wish to look at it.
+      camera_position = vec3(0., 0., -1.);
+      
+      lookAt = camPath(u_time);
+      // lookAt.z += sin(u_time / 10.) * .5;
+      // lookAt.x += cos(u_time / 10.) * .5;
+      camera_position = movement;
+      
+      vec3 forward = normalize(lookAt-camera_position); // Forward vector.
+      vec3 right = normalize(vec3(forward.z, 0., -forward.x )); // Right vector... or is it left? Either way, so long as the correct-facing up-vector is produced.
+      vec3 up = normalize(cross(forward,right)); // Cross product the two vectors above to get the up vector.
+
+      // FOV - Field of view.
+      float FOV = 0.3;
+
+      // ro - Ray origin.
+      vec3 ro = camera_position; 
+      // rd - Ray direction.
+      vec3 rd = normalize(forward + FOV*uv.x*right + FOV*uv.y*up);
+      
+      rd.xy = rot2( camPath(lookAt.z).x * -.2 )*rd.xy;
+      
+      // Ray marching.
+      int objid = 0;
+      float walldetail = 0.;
+      float blenddetail = 0.;
+      float dist = rayMarching(ro, rd, clipNear, clipFar, objid, walldetail, blenddetail );
+      if ( dist >= clipFar ) {
+        gl_FragColor = vec4(vec3(0.), 1.0);
+        return;
+      }
+
+      // sp - Surface position. If we've made it this far, we've hit something.
+      vec3 sp = ro + rd*dist;
+
+      // Light the pixel that corresponds to the surface position. The last entry indicates that it's not a reflection pass
+      // which we're not up to yet.
+      vec3 sceneColor = lighting( sp, camera_position, 0, dist, rd, objid, walldetail, blenddetail);
+
+      // Clamping the lit pixel, then put it on the screen.
+      gl_FragColor = vec4(clamp(sceneColor, 0.0, 1.0), 1.0);
+
+
+    }
+</script>
+
+
+<div id="container" touch-action="none"></div>
+<!-- partial -->
+  <script src='ccapture.js'></script>
+  <script  src="script.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/the_tomb/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:37:02 GMT -->
+</html>

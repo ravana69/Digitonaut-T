@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/trippy_circles_kaleidoscope/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:38:30 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Trippy Circles Kaleidoscope</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<div id="container"></div>
+    <script id="vertexShader" type="x-shader/x-vertex">
+        void main() {
+            gl_Position = vec4( position, 1.0 );
+        }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform vec2 u_resolution;
+        uniform vec2 u_mouse;
+        uniform float u_time;
+        
+        float Xor(float a, float b) {
+          return a*(1.-b) + b*(1.-a);
+        }
+      
+        void main() {
+            vec2 mv = (u_mouse/u_resolution.xy)*2.;
+            vec2 mvi = vec2(mv.x, 1.-mv.y);
+            vec2 uv = (gl_FragCoord.xy-.5*u_resolution.xy)/u_resolution.y;
+          
+            vec3 col = vec3(0); 
+            vec3 color = vec3(0);
+            float a = 0.78 + mv.x * mv.y;
+            float s = sin(a);
+            float c = cos(a);
+            uv *= mat2(c, -s, s, c);
+            uv *= 20.;
+          
+            vec2 gv = fract(uv)-.5;
+            vec2 id = floor(uv);
+          
+            float m = 0.;
+            float t = u_time*.2;
+            for(float y=-1.; y<=1.; y++) {
+              for(float x=-1.; x<=1.; x++) {
+                vec2 offs = vec2(x, y);
+                
+                float d = length(gv-offs);
+                float dist = length(id+offs)*(mv.x-0.5*mv.y-0.5); 
+                float r = mix(.3, 1.5, sin(dist-t)*.5+.5);
+                m = Xor(m, smoothstep(r, r*.95, d));
+                color = vec3(m*d, m*r, (1.-m*d*r)*mvi.x*mvi.y);
+              }
+            }
+            //col.rg = gv;
+            col += color;
+            gl_FragColor=vec4(col, 1.0);
+        }
+    </script>
+<!-- partial -->
+  <script src='95_three.min.js'></script>
+  <script  src="script.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/trippy_circles_kaleidoscope/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:39:03 GMT -->
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/twitch_braid/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:40:42 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+  <meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Twitch Braid</title>
+
+<script src="shader-web-background.min.js"></script>
+
+<script type="x-shader/x-fragment" id="Image">
+precision highp float;
+uniform vec2  iResolution;
+uniform float iTime;
+
+// -------------------------------------------------------------------------------------------------- Paste your Shadertoy code here:
+/*
+	This shader was created live on stream!
+	You can watch the VOD here: https://www.twitch.tv/videos/361407647
+	
+	I use the Bonzomatic tool by Gargaj/Conspiracy:
+	https://github.com/Gargaj/Bonzomatic
+
+	Wednesdays around 9pm UK time I stream at https://twitch.tv/lunasorcery
+	Come and watch a show!
+
+	~yx
+*/
+
+#define pi acos(-1.)
+#define tau (2.*pi)
+
+vec2 rotate(vec2 a, float b)
+{
+    float c = cos(b);
+    float s = sin(b);
+    return vec2(
+        a.x*c - a.y*s,
+        a.x*s + a.y*c
+    );
+}
+
+float sdbox2d(vec2 p, float r)
+{
+    p=abs(p);
+    return max(p.x,p.y)-r;
+}
+
+vec2 boffset(vec2 p, float t)
+{
+    t*=pi*2.;
+    return rotate(p+vec2(
+        cos(t)*2.,
+        -sin(t*3.)
+    )*.15, sin(t)*(pi*2./3.));
+}
+
+float tick(float t)
+{
+    t = smoothstep(0.,1.,t);
+    t = smoothstep(0.,1.,t);
+    t = smoothstep(0.,1.,t);
+    t = smoothstep(0.,1.,t);
+    return t;
+}
+
+float pattern(float t)
+{
+    t=fract(t);
+    return clamp(abs(t-.5)*-16.+7.5,-1.,1.)+1.;
+    return tick(abs(t-.5)*2.);
+}
+
+float scene2(vec2 p, float angle)
+{
+    float time = ((angle/tau)/5.)*4.+iTime*.25;
+
+    float q = iTime+angle;
+
+    float r = .02 + pattern((angle/tau)*30.)*.02;
+
+    float a = sdbox2d(boffset(p,time),r);
+    float b = sdbox2d(boffset(p,time+1./5.),r);
+    float c = sdbox2d(boffset(p,time+2./5.),r);
+    float d = sdbox2d(boffset(p,time+3./5.),r);
+    float e = sdbox2d(boffset(p,time+4./5.),r);
+    return min(min(min(a,b),min(c,d)),e);
+}
+
+float scene(vec3 p)
+{
+    p.xz = mod(p.xz+8.,16.)-8.;
+
+    float angle = atan(p.x,p.z);
+
+    float q = .75;
+
+    p.y += (angle/tau)*(q+q);
+
+    p.y = mod(p.y+q,(q+q))-q;
+
+    vec2 a = vec2(length(p.xz)-1., p.y);
+
+    return scene2(a, angle);
+}
+
+void mainImage(out vec4 out_color, vec2 fragCoord)
+{
+    vec2 uv = fragCoord/iResolution.xy-.5;
+    uv.x *= iResolution.x/iResolution.y;
+
+    uv *= 1.+length(uv)*.3;
+
+    vec3 cam = vec3(0,0,-5);
+    vec3 dir = normalize(vec3(uv, 2.5));
+
+    cam.yz = rotate(cam.yz, pi/5.);
+    dir.yz = rotate(dir.yz, pi/5.);
+
+    cam.xz = rotate(cam.xz, pi/4.);
+    dir.xz = rotate(dir.xz, pi/4.);
+
+    cam.y += iTime;
+
+    float t =0.;
+    float k = 0.;
+    int iter=0;
+    for(int i=0;i<100;++i)
+    {
+        k = scene(cam+dir*t)*.7;
+        t+=k;
+        iter=i;
+        if (k < .001)break;
+    }
+    vec3 h = cam+dir*t;
+    vec2 o = vec2(.002,0);
+    vec3 n = normalize(vec3(
+        scene(h+o.xyy)-scene(h-o.xyy),
+        scene(h+o.yxy)-scene(h-o.yxy),
+        scene(h+o.yyx)-scene(h-o.yyx)
+    ));
+
+    if (k < .001)
+    {
+        float iterFog = 1.-float(iter)/100.;
+        iterFog = pow(iterFog, 3.);
+        float light = max(n.y,0.);
+        out_color.rgb += mix(vec3(.01,.01,.1), vec3(.1,.5,.5), iterFog);
+        out_color.rgb += mix(vec3(0.), vec3(sin(iTime),sin(iTime+2.),sin(iTime+4.))+1., light*iterFog);
+    }
+    else
+    {
+        out_color *= 0.;
+    }
+
+    out_color.rgb = mix(out_color.rgb, vec3(out_color.r+out_color.g+out_color.b)/3., .5);
+}
+
+// -------------------------------------------------------------------------------------------------- End of Shadertoy code
+
+
+void main() {
+mainImage(gl_FragColor, gl_FragCoord.xy);
+}
+</script>
+<script>
+shaderWebBackground.shade({
+	shaders: {
+		Image: {
+			uniforms: {
+				iResolution: (gl, loc, ctx) => gl.uniform2f(loc, ctx.width, ctx.height),
+				iTime: (gl, loc) => gl.uniform1f(loc, performance.now() / 1000)
+			}
+		}
+	}
+});
+</script>
+</head>
+<body>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/twitch_braid/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:40:43 GMT -->
+</html>

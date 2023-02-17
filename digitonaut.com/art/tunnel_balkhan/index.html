@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<!-- Mirrored from digitonaut.com/art/tunnel_balkhan/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:39:50 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Tunnel Balkhan</title>
+
+<script src="shader-web-background.min.js"></script>
+<script type="x-shader/x-fragment" id="Image">
+precision highp float;
+uniform vec2  iResolution;
+uniform float iTime;
+
+// -------------------------------------------------------------------------------------------------- Shadertoy code
+/*
+* License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+* Created by bal-khan
+*/
+
+// blackbody by aiekick : https://www.shadertoy.com/view/lttXDn
+
+// -------------blackbody----------------- //
+
+// return color from temperature 
+//http://www.physics.sfasu.edu/astro/color/blackbody.html
+//http://www.vendian.org/mncharity/dir3/blackbody/
+//http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color.html
+
+vec3 blackbody(float Temp)
+{
+	vec3 col = vec3(255.);
+    col.x = 56100000. * pow(Temp,(-3. / 2.)) + 148.;
+   	col.y = 100.04 * log(Temp) - 623.6;
+   	if (Temp > 6500.) col.y = 35200000. * pow(Temp,(-3. / 2.)) + 184.;
+   	col.z = 194.18 * log(Temp) - 1448.6;
+   	col = clamp(col, 0., 255.)/255.;
+    if (Temp < 1000.) col *= Temp/1000.;
+   	return col;
+}
+
+// -------------blackbody----------------- //
+
+#define I_MAX	150
+#define E		0.00001
+
+float	sdTorus( vec3 p, vec2 t );
+vec2	march(vec3 pos, vec3 dir);
+vec3	camera(vec2 uv);
+vec2	rot(vec2 p, vec2 ang);
+float	mylength(vec3 p);
+float	mylength(vec2 p);
+void	rotate(inout vec2 v, float angle);
+
+float	t;
+vec3	h;
+float	mind;
+float	lit;
+float	test;
+vec3	_color_one, _color_two;
+
+void mainImage(out vec4 o, in vec2 f )
+{
+    h = vec3(0.);
+    t = iTime;
+    vec2 R = iResolution.xy,
+          uv  = vec2(f-R/2.) / R.y;
+    
+    _color_two = vec3(
+		sin(.25*iTime*.25+2.08)
+        ,
+        sin(.25*iTime*.5+2.57)
+        ,
+        sin(.25*iTime*.75+3.00)
+    );
+    
+	vec3	dir = camera(uv);
+    vec4	col = vec4(0.0);
+    vec3 pos = vec3(.01, .01, 5.0);
+
+    vec2	inter = (march(pos, dir));
+    col.xyz = 1.*blackbody((inter.y*.06125)*100.);
+   	col.xyz += h;
+    col.xyz += vec3(.2, .2, .2) * inter.x * .0125 * max(.01, 70./max(inter.y, .001) );
+    col.xyz += (1.-_color_one) * min(inter.y, 70.) * .003;
+    o.xyz = col.xyz;
+}
+
+float	scene(vec3 p)
+{
+    mind = 1e5;
+    lit  = 1e5;
+    p.z-= -30.;
+    p.z -= iTime*5.;
+	vec3	ap = p;
+    
+    
+    p.xy += vec2(cos(p.z*.25), sin(p.z*.25 ) );
+    p.xy += vec2(cos(-p.z*.125), sin(-p.z*.125 ) );
+    p.xy += vec2(cos(p.z*.0625), sin(p.z*.0625 ) );
+    p.xy += vec2(cos(-p.z*.03), sin(-p.z*.03 ) );
+    
+    p.xy += 
+        .175
+        *
+        vec2(
+            cos(iTime*5.+50.*(atan(ap.x, ap.y)*1.-iTime*-.05+p.z*.0251*1.0) )
+            ,
+            sin(iTime*5.+50.*(atan(ap.x, ap.y)*1.+iTime*-.05+p.z*.0251*1.0) )
+        );
+    
+    float ata = atan(p.x,p.y);
+    _color_one = vec3(
+    	sin(cos(3.*ata+(p.z*2.)/4.)+7.7+0.00)
+        ,
+        sin(cos(3.*ata+(p.z*2.)/8.)+7.7-.57)
+        ,
+        sin(cos(3.*ata+(p.z*2.)/16.)+7.7-1.04)
+    );
+    
+    mind = min(mind
+               ,
+               max( (length(p.xy)-10.), -(length(p.xy)-9.) )
+               );
+    
+    lit = min(lit, length( (p.xy))-10.);
+    lit = max(lit, -(length(p.xy)-9.125) );
+    
+    lit = max(lit, (length(-1.+1.*cos(p.zz*5.+iTime*.5) )-.2) );
+    h += 1.*_color_two*1./max(lit*lit*10000.1+.0+test*.1251, .1);
+
+    mind = max(mind, -(length(-1.+1.*cos(p.zz*5.+iTime*.5) )-.2) );
+	float tmp = mind;
+    
+    mind = min(mind, lit);
+    
+    h += _color_one * 1./max(tmp*tmp*100. + 50. + test, .01);
+
+    return(mind);
+}
+
+vec2	march(vec3 pos, vec3 dir)
+{
+    vec2	dist = vec2(0.0);
+    vec3	p = vec3(0.0);
+    vec2	s = vec2(0.0);
+	vec3	dirr;
+
+    for (int i = -1; i < I_MAX; ++i)
+    {
+        dirr = dir;
+        rotate(dirr.xz, +dist.y*.000+.25*sin(t*.25+dist.y*.005) );
+    	p = pos + dirr * dist.y;
+        test = dist.y;
+        dist.x = scene(p);
+        dist.y += dist.x;
+        if (dist.x < E)
+        {
+           break;
+	    }
+        s.x++;
+    }
+    s.y = dist.y;
+    return (s);
+}
+
+void rotate(inout vec2 v, float angle)
+{
+	v = vec2(cos(angle)*v.x+sin(angle)*v.y,-sin(angle)*v.x+cos(angle)*v.y);
+}
+
+float	mylength(vec2 p)
+{
+	return max(abs(p.x), abs(p.y));
+}
+
+float	mylength(vec3 p)
+{
+	return max(max(abs(p.x), abs(p.y)), abs(p.z));
+}
+
+float sdTorus( vec3 p, vec2 t )
+{
+	vec2 q = vec2(length(p.xy)-t.x,p.z);
+
+    return length(q)-t.y;
+}
+
+vec3	camera(vec2 uv)
+{
+    float   fov = 1.;
+	vec3    forw  = vec3(0.0, 0.0, -1.0);
+	vec3    right = vec3(1.0, 0.0, 0.0);
+	vec3    up    = vec3(0.0, 1.0, 0.0);
+
+    return (normalize((uv.x) * right + (uv.y) * up + fov * forw));
+}
+
+// -------------------------------------------------------------------------------------------------- End of Shadertoy code
+
+void main() {
+	mainImage(gl_FragColor, gl_FragCoord.xy);
+}
+</script>
+<script>
+shaderWebBackground.shade({
+	shaders: {
+		Image: {
+			uniforms: {
+				iResolution: (gl, loc, ctx) => gl.uniform2f(loc, ctx.width, ctx.height),
+				iTime: (gl, loc) => gl.uniform1f(loc, performance.now() / 1000)
+			}
+		}
+	}
+});
+</script>
+</head>
+<body>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/tunnel_balkhan/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:39:51 GMT -->
+</html>

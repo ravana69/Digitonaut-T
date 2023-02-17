@@ -1,0 +1,13 @@
+t=0
+draw=_=>{
+	createCanvas(w=960,h=630)
+	t+=1/360
+	for(x=45;x<w;x+=144){
+		beginShape()
+		for(y=-40;y<h+40;y++){
+			 a=noise(x,y/w,t)*50
+		 b=noise(x,y/w-t)*33
+	     vertex(x+sin(b)*(cos(a)-sin(x|y))*30,y+sin(a)*50)
+     }endShape()
+	}
+}

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/the_corner/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:36:12 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>The Corner</title>
+
+<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+<script id="vs" type="not-js">
+void main()	{
+  gl_Position = vec4( position, 1.0 );
+}
+</script>
+<script id="fs" type="not-js">
+precision mediump float;
+
+// -------------------------------------------- code from https://glslsandbox.com/ ------------------
+
+/*
+ * Original shader from: https://www.shadertoy.com/view/tllfzB
+ */
+
+#ifdef GL_ES
+precision mediump float;
+#endif
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+// glslsandbox uniforms
+uniform float time;
+uniform vec2 resolution;
+
+// shadertoy emulation
+#define iTime time
+#define iResolution resolution
+
+// --------[ Original ShaderToy begins here ]---------- //
+#define r iResolution.xy
+vec3 f(vec2 p) {
+    p.y+=cos(iTime*.25)*.3; // move camera up and down;
+    p.x=abs(p.x+.3); // offset and mirror x axis
+    p*=mat2(.7,.7,-.7,.7); // rotate ~45deg
+    float y=1.-abs(p.y*3.),l=1.-length(p), m=1e2; // used for: y=horizon, l=light, m=orbit trap
+	p=fract(vec2(p.x/p.y,1./p.y+iTime*1.*sign(p.y))*.5); // 3D projection, tiling and and forward movement
+    for (int i=0; i<18; i++) p=abs(p*1.5)/(p.x*p.y)-2.,m=min(m,abs(p.y)+abs(.5-fract(p.x*.5+iTime))); // fractal & orbit trap
+    m=exp(-10.*m); // something like inverting and compressing the orbit trap result
+    return mix(min(vec3(1.),vec3(m,m*m,m*m*m)*3.+p.x*p.x*.1),vec3(1,.5,.3),y)+l*l*l*.8; // coloring
+}
+void mainImage(out vec4 c, vec2 p)
+{
+    c=vec4(0);
+    vec2 u = (p-r*.5)/r.y,d;
+    // antialiasing
+    for (float i=-4.; i<4.; i++) for (float j=-4.; j<4.; j++) d=vec2(i,j)*.2/r,c.rgb+=f(u+d)/64.;
+}
+// --------[ Original ShaderToy ends here ]---------- //
+
+void main(void)
+{
+    mainImage(gl_FragColor, gl_FragCoord.xy);
+    gl_FragColor.a = 1.;
+}
+// -------------------------------------------------------------------------------------------------------------------
+
+</script>
+<script src="three.min.js"></script>
+<script src="main.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/the_corner/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:36:34 GMT -->
+</html>

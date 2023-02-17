@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/tetradic_harmony/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:36:03 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Tetradic Harmony</title>
+
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<canvas id="webgl" width="500" height="1758"></canvas>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+  attribute vec4 a_position;
+  
+  uniform mat4 u_modelViewMatrix;
+  uniform mat4 u_projectionMatrix;
+  
+  void main() {
+    gl_Position = a_position;
+  }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+  #extension GL_OES_standard_derivatives : enable
+  precision highp float;
+  
+  uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
+  uniform float u_time;
+  uniform sampler2D u_noise;
+  
+  float t;
+  
+  const vec3 col1 = vec3( 0.118, 0, 1 );
+  const vec3 col2 = vec3( 1, 0, 0.38 );
+  const vec3 col3 = vec3( 0.882, 1, 0 );
+  const vec3 col4 = vec3( 0, 1, 0.62 );
+  
+  const bool reverseRender = true;
+  
+  vec2 getScreenSpace() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
+    
+    return uv;
+  }
+  
+  float smin(float a, float b, float k) {
+      float h = clamp(0.5 + 0.5*(a-b)/k, 0.0, 1.0);
+      return mix(a, b, h) - k*h*(1.0-h);
+  }
+  
+  //  1 out, 1 in...
+  float hash11(float p) {
+    return abs(fract(sin(p) * 43758.5453123));
+  }
+  //  1 out, 3 in...
+  float hash13(vec3 p3) {
+    p3 /= 255.;
+    return texture2D(u_noise, vec2(p3.x+p3.z, p3.y+p3.z)).x;
+  }
+  
+  vec2 sym(vec2 uv) {
+    return abs(uv);
+  }
+  
+  #define PI 3.141592653589793
+  #define TAU 6.283185307179586
+  
+  float sdBox( in vec2 p, in vec2 b ) {
+    vec2 d = abs(p)-b;
+    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+  }
+  
+  const int MaxTeeth = 12;
+  
+  vec2 rot(vec2 uv, float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return uv * mat2(c, -s, s, c);
+  }
+  
+  vec2 kaleid(vec2 uv, int teeth) {
+    float segment = float(teeth)/3.;
+    float a = PI / float(teeth);
+    float s = sin(a);
+    float c = cos(a);
+    mat2 rot = mat2(c, -s, s, c);
+    
+    uv = sym(uv);
+    for(int i = 1; i < MaxTeeth; i++) {
+      if(float(i) > segment+1.) break;
+      uv = sym(rot*uv);
+    }
+    
+    return uv;
+  }
+  
+  float biteSDF(vec2 uv, int teeth, float i) {
+    uv = rot(uv, PI / 6.);
+    float l = length(uv);
+    uv = kaleid(uv, teeth);
+    float circ = l - .5;
+    uv = kaleid(uv + vec2(1., 0), 2+int(i));
+    
+    vec2 offset = vec2(.5, 0.5);
+    float a = (t + i * .2 + (l*(cos(t*.5)*.5+.5)));
+    a = t + u_mouse.y * 100. * (1./i) + i * .2 + l;
+    float c = cos(a);
+    float s = sin(a);
+    offset *= mat2(c, -s, s, c);
+    vec4 ds = abs(vec4(5.6 + s * 2., .2 + c * .1, .5 - c * .2, .8 - s*.4));
+    
+    // return -sdBox(uv - offset, vec2(5.6, .2));
+    
+    return min( circ, max(
+      -sdBox(uv - offset, vec2(ds.x, ds.y)),
+      sdBox(uv - offset, vec2(ds.x*3.5, ds.y*3.5))
+    ));
+    
+//     return min(
+//       max(
+//         circ,
+//         -sdBox(uv - offset, vec2(ds.x, ds.y))*smoothstep(.4, .3, circ)
+//         ), 
+//       max(
+//         -sdBox(uv - offset, vec2(ds.x, ds.y)),
+//         sdBox(uv - offset, vec2(ds.x*3.5, ds.y*3.5))
+//       )
+      
+//     );
+  }
+  
+  vec4 renderLayer(vec2 uv, float i, float z) {
+    float field = biteSDF(uv, 6, i);
+    float aa = fwidth(field);
+    
+    vec3 colour = vec3(1);
+    vec3 colour2 = vec3(1);
+    float r = hash11(i*64.);
+    if(r < .2) colour2 = col1;
+    else if(r < .4) colour2 = col2;
+    else if(r < .6) colour2 = col3;
+    else if(r < .8) colour2 = col4;
+    else colour2 = vec3(1);
+    colour = mix(
+      colour2,
+      colour,
+      smoothstep(aa, .0, field)
+    );
+    
+    return vec4(colour, smoothstep(.0, aa, field));
+  }
+  
+  const int layers = 10;
+  const float depth = 20.;
+  
+  vec4 render(vec2 uv) {
+    
+    vec4 colour = vec4(col4, 1);
+    
+    float flayers = float(layers);
+    vec4 renders[layers];
+    
+    vec4 render1, render2, render3, render4, render5, render6, render7, render8, render9, render10;
+    
+    float r = cos(t);
+    float a = t*.5;
+    
+    float ld = 1000.;
+    for(int i = layers; i >= 1; i--) {
+      float fi = float(i);
+      float d = fi/flayers*depth;
+      float z = mod(t * -10. + d, depth);
+      int j = int(floor(z/depth*flayers));
+      float o = z;
+      vec2 luv = uv;
+      
+      luv *= o;
+      vec4 layerColour = renderLayer(luv, fi, z);
+      float e = 1./o*depth;
+      e = smoothstep(depth, depth*.5, o);
+      layerColour.a *= e * smoothstep(0., 2.5, o);
+      
+      vec4 colourn = mix(
+            layerColour, 
+            layerColour * vec4(2, 0, 1, 1), 
+            1.-e);
+      if(j == 0) render1 = colourn;
+      else if(j == 1) render2 = colourn;
+      else if(j == 2) render3 = colourn;
+      else if(j == 3) render4 = colourn;
+      else if(j == 4) render5 = colourn;
+      else if(j == 5) render6 = colourn;
+      else if(j == 6) render7 = colourn;
+      else if(j == 7) render8 = colourn;
+      else if(j == 8) render9 = colourn;
+      else if(j == 9) render10 = colourn;
+    }
+    
+    float ca = 10.;
+    for (int i = layers-1; i >= 0; i--) {
+      vec4 colour1;
+      if(i == 0) colour1 = render1;
+      else if(i == 1) colour1 = render2;
+      else if(i == 2) colour1 = render3;
+      else if(i == 3) colour1 = render4;
+      else if(i == 4) colour1 = render5;
+      else if(i == 5) colour1 = render6;
+      else if(i == 6) colour1 = render7;
+      else if(i == 7) colour1 = render8;
+      else if(i == 8) colour1 = render9;
+      else if(i == 9) colour1 = render10;
+      if(reverseRender) {
+        if(i == 9) colour1 = render1;
+        else if(i == 8) colour1 = render2;
+        else if(i == 7) colour1 = render3;
+        else if(i == 6) colour1 = render4;
+        else if(i == 5) colour1 = render5;
+        else if(i == 4) colour1 = render6;
+        else if(i == 3) colour1 = render7;
+        else if(i == 2) colour1 = render8;
+        else if(i == 1) colour1 = render9;
+        else if(i == 0) colour1 = render10;
+      }
+      // colour += colour1 * smoothstep(0., 1., colour1.a);
+      // colour = smin(colour, colour1, .5);
+      ca = smin(ca, colour1.a, .5);
+      colour1 += (hash13(vec3(uv*1024., float(i)*1024.))-.5)*.05;
+      colour = mix(
+        colour, 
+        colour1,
+        smoothstep(0., 1., colour1.a)
+      );
+    }
+    
+    return colour;
+  }
+
+  void main() {
+    vec2 uv = getScreenSpace();
+    
+    t = u_time * .5;
+    
+    vec4 colour = render(uv);
+
+    gl_FragColor = vec4(colour.rgb, 1.0);
+  }
+  
+</script>
+<!-- partial -->
+  <script  src="script.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/tetradic_harmony/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 11:36:04 GMT -->
+</html>
